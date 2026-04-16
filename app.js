@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHyS_MZhSLPDmBMNfSEx69tzRWhLMQ9Sc",
@@ -16,32 +16,19 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// רשימת פרשות בסיסית (בפרויקט אמיתי נמשוך מ-Hebcal API)
-const parashot = ["בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי"];
+const parashot = ["בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי", "שמות", "וארא", "בא", "בשלח", "יתרו", "משפטים", "תרומה", "תצוה", "כי תשא", "ויקהל", "פקודי"];
 
-// אלמנטים
-const elements = {
-    auth: document.getElementById('auth-section'),
-    wizard: document.getElementById('wizard-section'),
-    app: document.getElementById('app-section'),
-    loginBtn: document.getElementById('login-btn'),
-    logoutBtn: document.getElementById('logout-btn'),
-    userName: document.getElementById('user-name-display'),
-    barMitzvahSelect: document.getElementById('bar-mitzvah-select'),
-    readingsBody: document.getElementById('readings-body')
-};
-
-// --- לוגיקת אתחול ומצב משתמש ---
+// --- ניהול מצבי תצוגה ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists() && userDoc.data().setupComplete) {
             showSection('app');
-            elements.userName.textContent = `שלום, ${user.displayName}`;
-            loadCommunityData();
+            document.getElementById('user-name-display').textContent = `שלום, ${user.displayName}`;
+            loadDashboard();
         } else {
-            initWizard();
             showSection('wizard');
+            populateParashot();
         }
     } else {
         showSection('auth');
@@ -49,18 +36,18 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function showSection(id) {
-    elements.auth.classList.add('hidden');
-    elements.wizard.classList.add('hidden');
-    elements.app.classList.add('hidden');
+    ['auth', 'wizard', 'app'].forEach(s => document.getElementById(`${s}-section`).classList.add('hidden'));
     document.getElementById(`${id}-section`).classList.remove('hidden');
 }
 
-// --- לוגיקת WIZARD ---
-function initWizard() {
+// --- Wizard ---
+function populateParashot() {
+    const sel = document.getElementById('bar-mitzvah-select');
+    if (sel.children.length > 0) return;
     parashot.forEach(p => {
         let opt = document.createElement('option');
         opt.value = p; opt.textContent = p;
-        elements.barMitzvahSelect.appendChild(opt);
+        sel.appendChild(opt);
     });
 }
 
@@ -71,47 +58,98 @@ document.getElementById('next-1').onclick = () => {
 
 document.getElementById('save-wizard').onclick = async () => {
     const user = auth.currentUser;
-    const selectedChumashim = Array.from(document.querySelectorAll('#chumash-list input:checked')).map(i => i.value);
-    
+    const known = Array.from(document.querySelectorAll('#chumash-list input:checked')).map(i => i.value);
     await setDoc(doc(db, "users", user.uid), {
         name: user.displayName,
         email: user.email,
-        barMitzvah: elements.barMitzvahSelect.value,
-        knownChumashim: selectedChumashim,
+        barMitzvah: document.getElementById('bar-mitzvah-select').value,
+        knownChumashim: known,
         setupComplete: true,
         isAdmin: user.email === 'rb077858@gmail.com'
     });
     location.reload();
 };
 
-// --- לוגיקת דשבורד וטבלה ---
-async function loadCommunityData() {
-    // כאן בעתיד נמשוך את הנתונים מ-Firestore
-    // כרגע נציג שורת דוגמה כדי לראות את העיצוב
-    const dummyData = [
-        { date: "20/04/2026", parasha: "תזריע", reader: "ראם בירנבאום", status: 2 },
-        { date: "23/04/2026", parasha: "מצורע", reader: "פנוי", status: 0 }
-    ];
-    
-    renderTable(dummyData);
+// --- לוגיקה עסקית ודשבורד ---
+async function loadDashboard() {
+    const q = query(collection(db, "readings"), orderBy("date", "asc"));
+    const snap = await getDocs(q);
+    const readings = [];
+    snap.forEach(d => readings.push({ id: d.id, ...d.data() }));
+
+    renderTable(readings);
+    renderPersonalCard(readings);
 }
 
 function renderTable(data) {
-    elements.readingsBody.innerHTML = '';
+    const body = document.getElementById('readings-body');
+    body.innerHTML = '';
+    const now = new Date();
+
     data.forEach(item => {
-        const row = document.createElement('tr');
-        const statusClass = item.status === 1 ? 'status-low' : item.status === 2 ? 'status-med' : 'status-high';
-        const statusText = ["טרם התחיל", "בתהליך", "מוכן!", "פנוי"][item.status] || "פנוי";
+        const dateObj = new Date(item.date);
+        const diffHours = (dateObj - now) / (1000 * 3600);
         
+        let statusClass = 'status-high';
+        let statusText = "מוכן";
+        let canJoin = false;
+
+        if (!item.reader || item.reader === "פנוי") {
+            statusClass = 'status-low';
+            statusText = "פנוי";
+            canJoin = true;
+        } else if (item.status < 3 && diffHours < 24) {
+            statusClass = 'status-low';
+            statusText = "דגל אדום!";
+        } else if (item.status < 3) {
+            statusClass = 'status-med';
+            statusText = "בתהליך";
+        }
+
+        const row = document.createElement('tr');
         row.innerHTML = `
             <td>${item.date}</td>
             <td>${item.parasha}</td>
-            <td>${item.reader}</td>
+            <td>${item.reader || '-'}</td>
             <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td>${canJoin ? `<button class="action-btn" onclick="assignMe('${item.id}')">שבץ אותי</button>` : ''}</td>
         `;
-        elements.readingsBody.appendChild(row);
+        body.appendChild(row);
     });
 }
 
-elements.loginBtn.onclick = () => signInWithPopup(auth, provider);
-elements.logoutBtn.onclick = () => signOut(auth);
+window.assignMe = async (id) => {
+    const user = auth.currentUser;
+    await updateDoc(doc(db, "readings", id), {
+        reader: user.displayName,
+        readerId: user.uid,
+        status: 1
+    });
+    loadDashboard();
+};
+
+function renderPersonalCard(data) {
+    const my = data.find(r => r.readerId === auth.currentUser.uid && new Date(r.date) >= new Date());
+    const container = document.getElementById('personal-card');
+    if (!my) {
+        container.innerHTML = "אין לך קריאה קרובה. אולי תשבץ את עצמך?";
+        return;
+    }
+    container.innerHTML = `
+        <strong>${my.parasha}</strong> ב-${my.date}<br>
+        מצב הכנה: 
+        <select onchange="updateStatus('${my.id}', this.value)">
+            <option value="1" ${my.status==1?'selected':''}>טרם התחלתי</option>
+            <option value="2" ${my.status==2?'selected':''}>עברתי פעם אחת</option>
+            <option value="3" ${my.status==3?'selected':''}>מוכן לקריאה!</option>
+        </select>
+    `;
+}
+
+window.updateStatus = async (id, val) => {
+    await updateDoc(doc(db, "readings", id), { status: parseInt(val) });
+    loadDashboard();
+};
+
+document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
+document.getElementById('logout-btn').onclick = () => signOut(auth);
