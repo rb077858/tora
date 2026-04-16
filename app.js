@@ -3,7 +3,12 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signO
 import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
-    // הדבק כאן את ה-Config שלך
+  apiKey: "AIzaSyCHyS_MZhSLPDmBMNfSEx69tzRWhLMQ9Sc",
+  authDomain: "tora-app-5781c.firebaseapp.com",
+  projectId: "tora-app-5781c",
+  storageBucket: "tora-app-5781c.firebasestorage.app",
+  messagingSenderId: "278076130279",
+  appId: "1:278076130279:web:01b37888c5b9d069ae7342"
 };
 
 const app = initializeApp(firebaseConfig);
