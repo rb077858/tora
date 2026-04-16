@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, updateDoc, orderBy, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs, updateDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHyS_MZhSLPDmBMNfSEx69tzRWhLMQ9Sc",
@@ -16,34 +16,19 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// רשימת פרשות מלאה
-const parashot = [
-    "בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי",
-    "שמות", "וארא", "בא", "בשלח", "יתרו", "משפטים", "תרומה", "תצוה", "כי תשא", "ויקהל", "פקודי",
-    "ויקרא", "צו", "שמיני", "תזריע", "מצורע", "אחרי מות", "קדושים", "אמור", "בהר", "בחוקותי",
-    "במדבר", "נשא", "בהעלותך", "שלח", "קרח", "חקת", "בלק", "פנחס", "מטות", "מסעי",
-    "דברים", "ואתחנן", "עקב", "ראה", "שופטים", "כי תצא", "כי תבוא", "נצבים", "וילך", "האזינו", "וזאת הברכה"
-];
+const parashot = ["בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי", "שמות", "וארא", "בא", "בשלח", "יתרו", "משפטים", "תרומה", "תצוה", "כי תשא", "ויקהל", "פקודי", "ויקרא", "צו", "שמיני", "תזריע", "מצורע", "אחרי מות", "קדושים", "אמור", "בהר", "בחוקותי", "במדבר", "נשא", "בהעלותך", "שלח", "קרח", "חקת", "בלק", "פנחס", "מטות", "מסעי", "דברים", "ואתחנן", "עקב", "ראה", "שופטים", "כי תצא", "כי תבוא", "נצבים", "וילך", "האזינו", "וזאת הברכה"];
 
-// הפעלת Persistence
-enableIndexedDbPersistence(db).catch(() => {});
+let currentUserData = null;
 
-// --- ניהול תצוגה ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            if (userDoc.exists() && userDoc.data().setupComplete) {
-                showSection('app');
-                document.getElementById('user-name-display').textContent = user.displayName;
-                loadDashboard();
-            } else {
-                showSection('wizard');
-                populateParashot();
-            }
-        } catch (e) {
-            showSection('app');
-            loadDashboard();
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists() && userDoc.data().setupComplete) {
+            currentUserData = userDoc.data();
+            setupDashboard();
+        } else {
+            showSection('wizard');
+            populateWizard();
         }
     } else {
         showSection('auth');
@@ -53,13 +38,11 @@ onAuthStateChanged(auth, async (user) => {
 function showSection(id) {
     document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
     document.getElementById(`${id}-section`).classList.remove('hidden');
-    document.body.style.alignItems = (id === 'app') ? 'flex-start' : 'center';
-    if (id === 'app') document.body.style.paddingTop = '40px';
 }
 
-function populateParashot() {
+// --- WIZARD (רק בר מצווה) ---
+function populateWizard() {
     const sel = document.getElementById('bar-mitzvah-select');
-    if (sel.children.length > 1) return;
     parashot.forEach(p => {
         let opt = document.createElement('option');
         opt.value = p; opt.textContent = p;
@@ -67,94 +50,112 @@ function populateParashot() {
     });
 }
 
-// לוגיקת Wizard
-document.getElementById('next-1').onclick = () => {
-    document.getElementById('step-1').classList.add('hidden');
-    document.getElementById('step-2').classList.remove('hidden');
-};
-
 document.getElementById('save-wizard').onclick = async () => {
     const user = auth.currentUser;
-    const known = Array.from(document.querySelectorAll('#chumash-list input:checked')).map(i => i.value);
     await setDoc(doc(db, "users", user.uid), {
         name: user.displayName,
         email: user.email,
         barMitzvah: document.getElementById('bar-mitzvah-select').value,
-        knownChumashim: known,
         setupComplete: true,
         isAdmin: user.email === 'rb077858@gmail.com'
     });
     location.reload();
 };
 
-// --- דשבורד ---
-async function loadDashboard() {
-    const q = query(collection(db, "readings"), orderBy("date", "asc"));
-    const snap = await getDocs(q);
-    const readings = [];
-    snap.forEach(d => readings.push({ id: d.id, ...d.data() }));
-    renderTable(readings);
-    renderPersonalCard(readings);
+// --- לוגיקת דשבורד אוטומטית ---
+async function setupDashboard() {
+    showSection('app');
+    document.getElementById('user-name-display').textContent = `שלום, ${auth.currentUser.displayName}`;
+    
+    if (currentUserData.isAdmin) {
+        document.getElementById('admin-toggle').classList.remove('hidden');
+        document.getElementById('admin-toggle').onclick = () => {
+            document.getElementById('admin-panel').classList.toggle('hidden');
+        };
+    }
+
+    // האזנה בזמן אמת לשיבוצים
+    onSnapshot(collection(db, "readings"), (snap) => {
+        const booked = {};
+        snap.forEach(d => booked[d.id] = d.data());
+        renderAutomaticTable(booked);
+    });
 }
 
-function renderTable(data) {
+function getNextSaturdays(count) {
+    const saturdays = [];
+    let d = new Date();
+    d.setDate(d.getDate() + (6 - d.getDay() + 7) % 7); // השבת הקרובה
+    for (let i = 0; i < count; i++) {
+        saturdays.push(new Date(d));
+        d.setDate(d.getDate() + 7);
+    }
+    return saturdays;
+}
+
+function renderAutomaticTable(bookedData) {
     const body = document.getElementById('readings-body');
     body.innerHTML = '';
-    const now = new Date();
+    const nextSaturdays = getNextSaturdays(5);
 
-    data.forEach(item => {
-        const dateObj = new Date(item.date);
-        const diffHours = (dateObj - now) / (1000 * 3600);
-        
-        let sClass = 'status-high', sText = "מוכן", canJoin = false;
+    nextSaturdays.forEach((sat) => {
+        const dateStr = sat.toISOString().split('T')[0];
+        // הערה: לצורך הדוגמה אנחנו לוקחים פרשה לפי אינדקס שרירותי מהרשימה. 
+        // במציאות יש לחשב איזו פרשה שייכת לאיזה תאריך.
+        const parashaIndex = (Math.floor(sat.getTime() / (1000*60*60*24*7))) % parashot.length;
+        const currentParasha = parashot[parashaIndex];
+        const docId = `${dateStr}_${currentParasha}`;
+        const booking = bookedData[docId];
 
-        if (!item.reader || item.reader === "פנוי") {
-            sClass = 'status-low'; sText = "פנוי"; canJoin = true;
-        } else if (item.status < 3 && diffHours < 24) {
-            sClass = 'status-low'; sText = "דגל אדום";
-        } else if (item.status < 3) {
-            sClass = 'status-med'; sText = "בתהליך";
-        }
-
+        const isVacant = !booking;
         const row = document.createElement('tr');
+        
+        let statusHTML = isVacant ? '<span class="badge status-low">פנוי</span>' : 
+                         `<span class="badge ${booking.status == 3 ? 'status-high' : 'status-med'}">${booking.status == 3 ? 'מוכן' : 'בתהליך'}</span>`;
+
         row.innerHTML = `
-            <td>${item.date.split('-').reverse().join('/')}</td>
-            <td><strong>${item.parasha}</strong></td>
-            <td>${item.reader || '-'}</td>
-            <td><span class="badge ${sClass}">${sText}</span></td>
-            <td>${canJoin ? `<button class="secondary-btn" onclick="assignMe('${item.id}')">שבץ אותי</button>` : ''}</td>
+            <td>${dateStr.split('-').reverse().join('/')}</td>
+            <td><strong>${currentParasha}</strong></td>
+            <td>${isVacant ? '-' : booking.readerName}</td>
+            <td>${statusHTML}</td>
+            <td>
+                ${isVacant ? `<button class="main-btn" style="padding:5px" onclick="assign('${docId}', '${currentParasha}', '${dateStr}')">שבץ אותי</button>` : ''}
+                ${!isVacant && booking.readerId === auth.currentUser.uid ? `<button class="secondary-btn" onclick="cancel('${docId}')">בטל</button>` : ''}
+            </td>
         `;
         body.appendChild(row);
+
+        if (booking && booking.readerId === auth.currentUser.uid) {
+            renderPersonalCard(docId, booking, currentParasha);
+        }
     });
 }
 
-window.assignMe = async (id) => {
-    await updateDoc(doc(db, "readings", id), {
-        reader: auth.currentUser.displayName,
+window.assign = async (id, parasha, date) => {
+    await setDoc(doc(db, "readings", id), {
+        readerName: auth.currentUser.displayName,
         readerId: auth.currentUser.uid,
+        parasha: parasha,
+        date: date,
         status: 1
     });
-    loadDashboard();
 };
 
-function renderPersonalCard(data) {
-    const my = data.find(r => r.readerId === auth.currentUser.uid && new Date(r.date) >= new Date().setHours(0,0,0,0));
-    const container = document.getElementById('personal-card');
-    if (!my) {
-        container.innerHTML = "<p style='color:var(--text-muted)'>אין לך קריאה קרובה.</p>";
-        return;
+window.cancel = async (id) => {
+    if(confirm("בטוח שברצונך לבטל את השיבוץ?")) {
+        await setDoc(doc(db, "readings", id), {}); // מוחק את השיבוץ
     }
-    container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <span style="color:var(--accent)">הקריאה שלך:</span>
-                <h2 style="margin:5px 0">${my.parasha}</h2>
-                <small>${my.date}</small>
-            </div>
-            <select class="full-input" style="width:auto; margin:0" onchange="updateStatus('${my.id}', this.value)">
-                <option value="1" ${my.status==1?'selected':''}>⏳ טרם התחלתי</option>
-                <option value="2" ${my.status==2?'selected':''}>📖 בתהליך למידה</option>
-                <option value="3" ${my.status==3?'selected':''}>✅ מוכן!</option>
+};
+
+function renderPersonalCard(id, data, parasha) {
+    const card = document.getElementById('personal-card');
+    card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center">
+            <div>קריאה קרובה: <strong>${parasha}</strong></div>
+            <select onchange="updateStatus('${id}', this.value)" class="full-input" style="width:auto; margin:0">
+                <option value="1" ${data.status==1?'selected':''}>⏳ התחלתי</option>
+                <option value="2" ${data.status==2?'selected':''}>📖 לומד</option>
+                <option value="3" ${data.status==3?'selected':''}>✅ מוכן!</option>
             </select>
         </div>
     `;
@@ -162,7 +163,6 @@ function renderPersonalCard(data) {
 
 window.updateStatus = async (id, val) => {
     await updateDoc(doc(db, "readings", id), { status: parseInt(val) });
-    loadDashboard();
 };
 
 document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
