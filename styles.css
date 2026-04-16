@@ -1,18 +1,105 @@
-body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; direction: rtl; }
-.container { background: white; max-width: 800px; margin: 50px auto; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-.hidden { display: none; }
-.main-btn { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-.secondary-btn { background: #f1f3f4; border: 1px solid #ccc; padding: 5px 10px; cursor: pointer; }
-.full-input { width: 100%; padding: 10px; margin: 10px 0; }
-.card { padding: 15px; border: 1px dashed #ccc; border-radius: 6px; margin: 10px 0; }
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-hover: #0ea5e9;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --border: #334155;
+}
 
-/* טבלה */
-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-th, td { border-bottom: 1px solid #eee; padding: 12px; text-align: right; }
-th { background: #f8f9fa; }
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    direction: rtl;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
-/* סטטוסים */
-.badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-.status-low { background: #ffebee; color: #c62828; } /* דגל אדום */
-.status-med { background: #fff3e0; color: #ef6c00; }
-.status-high { background: #e8f5e9; color: #2e7d32; }
+.container {
+    background: var(--card-bg);
+    width: 90%;
+    max-width: 900px;
+    padding: 2rem;
+    border-radius: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+}
+
+.hidden { display: none !important; }
+
+h1, h2, h3 { color: var(--text-main); font-weight: 700; margin-bottom: 1.5rem; }
+
+/* כפתורים */
+.main-btn {
+    background: var(--accent);
+    color: var(--bg-color);
+    border: none;
+    padding: 12px 28px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.main-btn:hover { background: var(--accent-hover); transform: translateY(-2px); }
+
+.secondary-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.secondary-btn:hover { background: var(--border); color: white; }
+
+/* טפסים */
+.full-input {
+    width: 100%;
+    padding: 14px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: white;
+    margin: 1rem 0;
+    font-size: 1rem;
+}
+
+/* כרטיס אישי */
+.card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid var(--accent);
+    margin-bottom: 2rem;
+}
+
+/* טבלה מודרנית */
+.table-wrapper { overflow-x: auto; margin-top: 1rem; }
+table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+th { text-align: right; color: var(--text-muted); padding: 1rem; font-weight: 500; font-size: 0.9rem; }
+td { background: #1a2233; padding: 1rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+td:first-child { border-right: 1px solid var(--border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+td:last-child { border-left: 1px solid var(--border); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+
+/* באדג'ים */
+.badge { padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+.status-low { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid var(--danger); }
+.status-med { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid var(--warning); }
+.status-high { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid var(--success); }
+
+/* צ'קבוקסים */
+.checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: right; margin-bottom: 1.5rem; }
+.checkbox-group label { background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
