@@ -10,57 +10,46 @@
 
     <div id="auth-section" class="container">
         <h1>חברותא</h1>
-        <p>ניהול קריאות בתורה</p>
+        <p>ניהול קריאת התורה הקהילתי</p>
         <button id="login-btn" class="main-btn">התחברות עם Google</button>
     </div>
 
     <div id="wizard-section" class="container hidden">
-        <h2>נעים להכיר!</h2>
-        <div id="step-1">
-            <p>מהי פרשת בר המצווה שלך?</p>
-            <select id="bar-mitzvah-select" class="full-input">
-                <option value="">בחר פרשה...</option>
-            </select>
-            <button id="next-1" class="main-btn">המשך</button>
-        </div>
-        <div id="step-2" class="hidden">
-            <p>אילו חומשים אתה מכיר היטב?</p>
-            <div class="checkbox-group" id="chumash-list">
-                <label><input type="checkbox" value="בראשית"> בראשית</label>
-                <label><input type="checkbox" value="שמות"> שמות</label>
-                <label><input type="checkbox" value="ויקרא"> ויקרא</label>
-                <label><input type="checkbox" value="במדבר"> במדבר</label>
-                <label><input type="checkbox" value="דברים"> דברים</label>
-            </div>
-            <button id="save-wizard" class="main-btn">סיום והגדרה</button>
-        </div>
+        <h2>הגדרה ראשונית</h2>
+        <p>מהי פרשת בר המצווה שלך?</p>
+        <select id="bar-mitzvah-select" class="full-input"></select>
+        <button id="save-wizard" class="main-btn">שמור והמשך</button>
     </div>
 
     <div id="app-section" class="container hidden">
-        <header>
+        <header class="dashboard-header">
             <span id="user-name-display"></span>
+            <button id="admin-toggle" class="secondary-btn hidden">פאנל אדמין</button>
             <button id="logout-btn" class="secondary-btn">התנתק</button>
         </header>
-        <hr>
-        <section id="my-reading">
-            <h3>הקריאה הבאה שלי</h3>
-            <div id="reading-card" class="card empty">אין לך קריאה משובצת כרגע</div>
-        </section>
-        <section id="community-table">
-            <h3>לוח קריאות קהילתי</h3>
-            <table id="main-table">
+
+        <section id="personal-card" class="card"></section>
+
+        <h3>5 הפרשות הקרובות</h3>
+        <div class="table-wrapper">
+            <table>
                 <thead>
                     <tr>
                         <th>תאריך</th>
-                        <th>פרשה/עליה</th>
+                        <th>פרשה</th>
                         <th>קורא</th>
-                        <th>מצב</th>
+                        <th>סטטוס</th>
+                        <th>פעולה</th>
                     </tr>
                 </thead>
-                <tbody id="readings-body">
-                    </tbody>
+                <tbody id="readings-body"></tbody>
             </table>
-        </section>
+        </div>
+
+        <div id="admin-panel" class="card hidden" style="border-color: var(--danger); margin-top: 2rem;">
+            <h3>ניהול קהילה (Admin)</h3>
+            <div id="users-list"></div>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>
