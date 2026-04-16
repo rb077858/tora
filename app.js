@@ -11,39 +11,37 @@ const firebaseConfig = {
   appId: "1:278076130279:web:01b37888c5b9d069ae7342"
 };
 
-// אתחול
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// הפעלת מצב אופליין (מונע את השגיאה שקיבלת במקרה של ניתוק רגעי)
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.warn("Multiple tabs open, persistence can only be enabled in one tab at a time.");
-    } else if (err.code == 'unimplemented') {
-        console.warn("The current browser does not support all of the features required to enable persistence");
-    }
-});
+// רשימת פרשות מלאה
+const parashot = [
+    "בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי",
+    "שמות", "וארא", "בא", "בשלח", "יתרו", "משפטים", "תרומה", "תצוה", "כי תשא", "ויקהל", "פקודי",
+    "ויקרא", "צו", "שמיני", "תזריע", "מצורע", "אחרי מות", "קדושים", "אמור", "בהר", "בחוקותי",
+    "במדבר", "נשא", "בהעלותך", "שלח", "קרח", "חקת", "בלק", "פנחס", "מטות", "מסעי",
+    "דברים", "ואתחנן", "עקב", "ראה", "שופטים", "כי תצא", "כי תבוא", "נצבים", "וילך", "האזינו", "וזאת הברכה"
+];
 
-const parashot = ["בראשית", "נח", "לך לך", "וירא", "חיי שרה", "תולדות", "ויצא", "וישלח", "וישב", "מקץ", "ויגש", "ויחי", "שמות", "וארא", "בא", "בשלח", "יתרו", "משפטים", "תרומה", "תצוה", "כי תשא", "ויקהל", "פקודי"];
+// הפעלת Persistence
+enableIndexedDbPersistence(db).catch(() => {});
 
-// --- ניהול מצבי תצוגה ---
+// --- ניהול תצוגה ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         try {
             const userDoc = await getDoc(doc(db, "users", user.uid));
             if (userDoc.exists() && userDoc.data().setupComplete) {
                 showSection('app');
-                document.getElementById('user-name-display').textContent = `שלום, ${user.displayName}`;
+                document.getElementById('user-name-display').textContent = user.displayName;
                 loadDashboard();
             } else {
                 showSection('wizard');
                 populateParashot();
             }
-        } catch (error) {
-            console.error("שגיאה בגישה למסד הנתונים:", error);
-            // במקרה של שגיאת חיבור, ננסה להציג את הדשבורד עם מה שיש ב-Cache
+        } catch (e) {
             showSection('app');
             loadDashboard();
         }
@@ -53,18 +51,15 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function showSection(id) {
-    ['auth', 'wizard', 'app'].forEach(s => {
-        const el = document.getElementById(`${s}-section`);
-        if (el) el.classList.add('hidden');
-    });
-    const target = document.getElementById(`${id}-section`);
-    if (target) target.classList.remove('hidden');
+    document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+    document.getElementById(`${id}-section`).classList.remove('hidden');
+    document.body.style.alignItems = (id === 'app') ? 'flex-start' : 'center';
+    if (id === 'app') document.body.style.paddingTop = '40px';
 }
 
-// --- Wizard ---
 function populateParashot() {
     const sel = document.getElementById('bar-mitzvah-select');
-    if (!sel || sel.children.length > 0) return;
+    if (sel.children.length > 1) return;
     parashot.forEach(p => {
         let opt = document.createElement('option');
         opt.value = p; opt.textContent = p;
@@ -72,6 +67,7 @@ function populateParashot() {
     });
 }
 
+// לוגיקת Wizard
 document.getElementById('next-1').onclick = () => {
     document.getElementById('step-1').classList.add('hidden');
     document.getElementById('step-2').classList.remove('hidden');
@@ -80,39 +76,29 @@ document.getElementById('next-1').onclick = () => {
 document.getElementById('save-wizard').onclick = async () => {
     const user = auth.currentUser;
     const known = Array.from(document.querySelectorAll('#chumash-list input:checked')).map(i => i.value);
-    try {
-        await setDoc(doc(db, "users", user.uid), {
-            name: user.displayName,
-            email: user.email,
-            barMitzvah: document.getElementById('bar-mitzvah-select').value,
-            knownChumashim: known,
-            setupComplete: true,
-            isAdmin: user.email === 'rb077858@gmail.com'
-        });
-        location.reload();
-    } catch (e) {
-        alert("שגיאה בשמירת הנתונים. וודא שיש חיבור אינטרנט.");
-    }
+    await setDoc(doc(db, "users", user.uid), {
+        name: user.displayName,
+        email: user.email,
+        barMitzvah: document.getElementById('bar-mitzvah-select').value,
+        knownChumashim: known,
+        setupComplete: true,
+        isAdmin: user.email === 'rb077858@gmail.com'
+    });
+    location.reload();
 };
 
-// --- לוגיקה עסקית ודשבורד ---
+// --- דשבורד ---
 async function loadDashboard() {
-    try {
-        const q = query(collection(db, "readings"), orderBy("date", "asc"));
-        const snap = await getDocs(q);
-        const readings = [];
-        snap.forEach(d => readings.push({ id: d.id, ...d.data() }));
-
-        renderTable(readings);
-        renderPersonalCard(readings);
-    } catch (e) {
-        console.error("לא ניתן לטעון את לוח הקריאות:", e);
-    }
+    const q = query(collection(db, "readings"), orderBy("date", "asc"));
+    const snap = await getDocs(q);
+    const readings = [];
+    snap.forEach(d => readings.push({ id: d.id, ...d.data() }));
+    renderTable(readings);
+    renderPersonalCard(readings);
 }
 
 function renderTable(data) {
     const body = document.getElementById('readings-body');
-    if (!body) return;
     body.innerHTML = '';
     const now = new Date();
 
@@ -120,75 +106,63 @@ function renderTable(data) {
         const dateObj = new Date(item.date);
         const diffHours = (dateObj - now) / (1000 * 3600);
         
-        let statusClass = 'status-high';
-        let statusText = "מוכן";
-        let canJoin = false;
+        let sClass = 'status-high', sText = "מוכן", canJoin = false;
 
         if (!item.reader || item.reader === "פנוי") {
-            statusClass = 'status-low';
-            statusText = "פנוי";
-            canJoin = true;
+            sClass = 'status-low'; sText = "פנוי"; canJoin = true;
         } else if (item.status < 3 && diffHours < 24) {
-            statusClass = 'status-low';
-            statusText = "דגל אדום!";
+            sClass = 'status-low'; sText = "דגל אדום";
         } else if (item.status < 3) {
-            statusClass = 'status-med';
-            statusText = "בתהליך";
+            sClass = 'status-med'; sText = "בתהליך";
         }
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${item.date}</td>
-            <td>${item.parasha}</td>
+            <td>${item.date.split('-').reverse().join('/')}</td>
+            <td><strong>${item.parasha}</strong></td>
             <td>${item.reader || '-'}</td>
-            <td><span class="badge ${statusClass}">${statusText}</span></td>
-            <td>${canJoin ? `<button class="action-btn" onclick="assignMe('${item.id}')">שבץ אותי</button>` : ''}</td>
+            <td><span class="badge ${sClass}">${sText}</span></td>
+            <td>${canJoin ? `<button class="secondary-btn" onclick="assignMe('${item.id}')">שבץ אותי</button>` : ''}</td>
         `;
         body.appendChild(row);
     });
 }
 
 window.assignMe = async (id) => {
-    const user = auth.currentUser;
-    try {
-        await updateDoc(doc(db, "readings", id), {
-            reader: user.displayName,
-            readerId: user.uid,
-            status: 1
-        });
-        loadDashboard();
-    } catch (e) {
-        alert("השיבוץ נכשל. נסה שנית מאוחר יותר.");
-    }
+    await updateDoc(doc(db, "readings", id), {
+        reader: auth.currentUser.displayName,
+        readerId: auth.currentUser.uid,
+        status: 1
+    });
+    loadDashboard();
 };
 
 function renderPersonalCard(data) {
     const my = data.find(r => r.readerId === auth.currentUser.uid && new Date(r.date) >= new Date().setHours(0,0,0,0));
     const container = document.getElementById('personal-card');
-    if (!container) return;
-    
     if (!my) {
-        container.innerHTML = "אין לך קריאה קרובה. אולי תשבץ את עצמך?";
+        container.innerHTML = "<p style='color:var(--text-muted)'>אין לך קריאה קרובה.</p>";
         return;
     }
     container.innerHTML = `
-        <strong>${my.parasha}</strong> ב-${my.date}<br>
-        מצב הכנה: 
-        <select onchange="updateStatus('${my.id}', this.value)">
-            <option value="1" ${my.status==1?'selected':''}>טרם התחלתי</option>
-            <option value="2" ${my.status==2?'selected':''}>עברתי פעם אחת</option>
-            <option value="3" ${my.status==3?'selected':''}>מוכן לקריאה!</option>
-        </select>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <span style="color:var(--accent)">הקריאה שלך:</span>
+                <h2 style="margin:5px 0">${my.parasha}</h2>
+                <small>${my.date}</small>
+            </div>
+            <select class="full-input" style="width:auto; margin:0" onchange="updateStatus('${my.id}', this.value)">
+                <option value="1" ${my.status==1?'selected':''}>⏳ טרם התחלתי</option>
+                <option value="2" ${my.status==2?'selected':''}>📖 בתהליך למידה</option>
+                <option value="3" ${my.status==3?'selected':''}>✅ מוכן!</option>
+            </select>
+        </div>
     `;
 }
 
 window.updateStatus = async (id, val) => {
-    try {
-        await updateDoc(doc(db, "readings", id), { status: parseInt(val) });
-        loadDashboard();
-    } catch (e) {
-        console.error("עדכון סטטוס נכשל");
-    }
+    await updateDoc(doc(db, "readings", id), { status: parseInt(val) });
+    loadDashboard();
 };
 
 document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
